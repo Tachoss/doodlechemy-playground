@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GameStats } from './GameStats';
@@ -24,12 +25,11 @@ import { PowerUp, PowerUpsState, initializePowerUps, activatePowerUp } from '@/u
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import { Achievement } from '@/utils/achievementSystem';
 import { Element } from '@/utils/elementData';
-import { Tab, Tabs, TabsList, TabsContent, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsContent, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from './ui/scroll-area';
 import { 
   Award, 
   BookOpenText, 
-  Elements, 
   Filter, 
   Heart, 
   Info, 
@@ -42,7 +42,7 @@ import {
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Separator } from './ui/separator';
-import { useMobile } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Label } from './ui/label';
 
 const GameContainer = () => {
@@ -52,7 +52,7 @@ const GameContainer = () => {
   const [filter, setFilter] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-  const isMobile = useMobile();
+  const isMobile = useIsMobile();
   const [lastUnlockedAchievement, setLastUnlockedAchievement] = useState<Achievement | null>(null);
   const [newlyDiscoveredElement, setNewlyDiscoveredElement] = useState<Element | null>(null);
   const [showSettings, setShowSettings] = useState(false);
@@ -131,6 +131,17 @@ const GameContainer = () => {
   }, {} as Record<string, number>);
 
   const stats = getGameStats(gameState);
+  
+  // Create the combinationCounts for ElementGrid
+  const combinationCounts: Record<string, number> = {};
+  gameState.discoveries.forEach(discovery => {
+    discovery.elements.forEach(element => {
+      combinationCounts[element] = (combinationCounts[element] || 0) + 1;
+    });
+  });
+
+  // Calculate a dummy selectedElements array to match ElementGrid props
+  const selectedElements = gameState.combination;
 
   return (
     <div className="container mx-auto px-4 md:px-6 pb-8 relative">
@@ -198,7 +209,7 @@ const GameContainer = () => {
               <div className="flex items-center justify-between mb-4">
                 <TabsList className="grid grid-cols-3">
                   <TabsTrigger value="elements" className="flex items-center">
-                    <Elements className="h-4 w-4 mr-2" />
+                    <Search className="h-4 w-4 mr-2" />
                     <span className="hidden sm:inline">Elements</span>
                   </TabsTrigger>
                   <TabsTrigger value="discoveries" className="flex items-center">
@@ -313,11 +324,13 @@ const GameContainer = () => {
                     <ScrollArea className="h-[50vh]">
                       <ElementGrid 
                         elements={displayedElements} 
-                        onDrop={handleDrop}
+                        selectedElements={selectedElements}
                         onElementClick={handleViewDetails}
                         favorites={gameState.favorites}
-                        onToggleFavorite={handleToggleFavorite}
+                        onElementFavorite={handleToggleFavorite}
+                        combinationCounts={combinationCounts}
                         elementPowers={gameState.elementPowers}
+                        comboMultiplier={gameState.comboMultiplier}
                       />
                     </ScrollArea>
                   </div>
@@ -335,7 +348,7 @@ const GameContainer = () => {
               <TabsContent value="achievements" className="mt-0">
                 <AchievementsPanel 
                   achievements={gameProgress.achievementState.achievements} 
-                  lastUnlocked={gameProgress.achievementState.lastUnlocked}
+                  onClose={() => {}}
                 />
               </TabsContent>
             </Tabs>
@@ -378,9 +391,7 @@ const GameContainer = () => {
                 <ElementDetails 
                   element={getElementByID(gameState, gameState.viewedElementDetails)}
                   onClose={() => handleViewDetails(null)}
-                  isFavorite={gameState.favorites.includes(gameState.viewedElementDetails)}
-                  onToggleFavorite={() => handleToggleFavorite(gameState.viewedElementDetails)}
-                  powerLevel={gameState.elementPowers[gameState.viewedElementDetails] || 0}
+                  elementCounts={combinationCounts}
                 />
               )}
             </AnimatePresence>

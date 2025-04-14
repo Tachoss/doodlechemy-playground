@@ -12,13 +12,19 @@ interface ElementDetailsProps {
   onClose: () => void;
   discovery?: Discovery;
   elementCounts: Record<string, number>;
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
+  powerLevel?: number;
 }
 
 const ElementDetails: React.FC<ElementDetailsProps> = ({
   element,
   onClose,
   discovery,
-  elementCounts
+  elementCounts,
+  isFavorite = false,
+  onToggleFavorite,
+  powerLevel = 0
 }) => {
   const getCategoryLabel = (category: Element['category']) => {
     switch (category) {
@@ -126,6 +132,12 @@ const ElementDetails: React.FC<ElementDetailsProps> = ({
                 <span className="font-medium">Times Used in Combinations:</span> {usageCount}
               </div>
               
+              {powerLevel > 0 && (
+                <div className="text-sm">
+                  <span className="font-medium">Power Level:</span> {powerLevel}
+                </div>
+              )}
+              
               {discovery && (
                 <div className="border-t pt-4 mt-4">
                   <h3 className="text-sm font-medium mb-2 flex items-center">
@@ -140,7 +152,16 @@ const ElementDetails: React.FC<ElementDetailsProps> = ({
               )}
             </div>
             
-            <div className="mt-6 pt-4 border-t flex justify-end">
+            <div className="mt-6 pt-4 border-t flex justify-between">
+              {onToggleFavorite && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onToggleFavorite}
+                >
+                  {isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+                </Button>
+              )}
               <Button
                 variant="default"
                 size="sm"

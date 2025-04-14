@@ -10,12 +10,14 @@ interface AchievementsPanelProps {
   achievements: Achievement[];
   onClose: () => void;
   showLocked?: boolean;
+  lastUnlocked?: Achievement | null;
 }
 
 const AchievementsPanel: React.FC<AchievementsPanelProps> = ({
   achievements,
   onClose,
-  showLocked = true
+  showLocked = true,
+  lastUnlocked = null
 }) => {
   const [filter, setFilter] = React.useState<'all' | 'unlocked' | 'locked'>('all');
   

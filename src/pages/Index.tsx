@@ -60,10 +60,9 @@ const Index = () => {
             key={`orb-${i}`}
             className="absolute rounded-full opacity-30 bg-gradient-radial blur-xl"
             style={{
-              from: i % 3 === 0 ? 'rgba(124, 58, 237, 0.5)' : 
+              background: i % 3 === 0 ? 'rgba(124, 58, 237, 0.5)' : 
                     i % 3 === 1 ? 'rgba(236, 72, 153, 0.5)' : 
                     'rgba(6, 182, 212, 0.5)',
-              to: 'transparent',
               width: `${Math.random() * 400 + 200}px`,
               height: `${Math.random() * 400 + 200}px`,
               left: `${Math.random() * 100}%`,
