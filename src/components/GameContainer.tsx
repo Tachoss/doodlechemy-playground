@@ -8,6 +8,7 @@ import ElementDetails from './ElementDetails';
 import AchievementsPanel from './AchievementsPanel';
 import { Badge } from './ui/badge';
 import PowerUpPanel from './PowerUpPanel';
+import GameTips from './GameTips';
 import { toast } from '@/hooks/use-toast';
 import { 
   addElementToCombination, 
@@ -37,7 +38,7 @@ import {
   Settings, 
   Sparkles, 
   Zap,
-  Atom // Replacing 'Elements' with 'Atom' which is available in lucide-react
+  Atom // Using Atom as an icon for Elements
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -141,7 +142,7 @@ const GameContainer = () => {
   });
 
   // Calculate a dummy selectedElements array to match ElementGrid props
-  const selectedElements = gameState.combination || [];
+  const selectedElements = gameState.combiningElements.filter(el => el !== null) as string[];
 
   return (
     <div className="container mx-auto px-4 md:px-6 pb-8 relative">
@@ -185,6 +186,8 @@ const GameContainer = () => {
           </Badge>
         </motion.div>
       </header>
+
+      <GameTips gameState={gameState} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
