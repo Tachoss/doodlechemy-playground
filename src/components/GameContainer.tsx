@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GameStats } from './GameStats';
@@ -142,7 +141,7 @@ const GameContainer = () => {
   });
 
   // Calculate a dummy selectedElements array to match ElementGrid props
-  const selectedElements = gameState.combination;
+  const selectedElements = gameState.combination || [];
 
   return (
     <div className="container mx-auto px-4 md:px-6 pb-8 relative">
@@ -327,11 +326,11 @@ const GameContainer = () => {
                         elements={displayedElements} 
                         selectedElements={selectedElements}
                         onElementClick={handleViewDetails}
-                        favorites={gameState.favorites}
+                        favorites={gameState.favorites || []}
                         onElementFavorite={handleToggleFavorite}
                         combinationCounts={combinationCounts}
-                        elementPowers={gameState.elementPowers}
-                        comboMultiplier={gameState.comboMultiplier}
+                        elementPowers={gameState.elementPowers || {}}
+                        comboMultiplier={gameState.comboMultiplier || 1}
                       />
                     </ScrollArea>
                   </div>
@@ -400,7 +399,6 @@ const GameContainer = () => {
         </div>
       </div>
 
-      {/* Enhanced achievement notification */}
       <AnimatePresence>
         {lastUnlockedAchievement && (
           <motion.div
@@ -422,7 +420,6 @@ const GameContainer = () => {
         )}
       </AnimatePresence>
 
-      {/* New element discovery celebration animation */}
       <AnimatePresence>
         {newlyDiscoveredElement && (
           <motion.div

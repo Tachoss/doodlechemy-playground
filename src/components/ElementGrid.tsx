@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Element from './Element';
@@ -28,10 +27,10 @@ const ElementGrid: React.FC<ElementGridProps> = ({
   combineZoneRef,
   onElementDetails,
   onElementFavorite,
-  favorites = [], // Provide default empty array to prevent undefined errors
-  combinationCounts = {}, // Provide default empty object to prevent undefined errors
-  elementPowers = {}, // Provide default empty object to prevent undefined errors
-  comboMultiplier = 1 // Provide default value to prevent undefined errors
+  favorites = [],
+  combinationCounts = {},
+  elementPowers = {},
+  comboMultiplier = 1
 }) => {
   const [filter, setFilter] = useState<'all' | 'basic' | 'compound' | 'advanced' | 'rare' | 'scientific'>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -43,11 +42,9 @@ const ElementGrid: React.FC<ElementGridProps> = ({
   
   const categories = ['all', ...new Set(elements.map(e => e.category))];
 
-  // Ensure favorites exists before using includes
   const safeIsFavorite = (id: string) => Array.isArray(favorites) && favorites.includes(id);
 
   const filteredElements = elements.filter(element => {
-    // Use the safe function for checking favorites
     if (showFavoritesOnly) return safeIsFavorite(element.id);
     if (activeCategory === 'all') return true;
     return element.category === activeCategory;
@@ -92,7 +89,6 @@ const ElementGrid: React.FC<ElementGridProps> = ({
 
   return (
     <div className={className}>
-      {/* Combo Multiplier Display */}
       {comboMultiplier > 1 && (
         <motion.div 
           className="mb-4 p-2 bg-primary/10 rounded-lg flex items-center justify-center gap-2"
