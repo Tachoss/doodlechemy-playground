@@ -15,7 +15,7 @@ interface CombinationAreaProps {
   onCombine: () => void;
 }
 
-// Default empty game state
+// Default empty game state with all required properties
 const defaultGameState: GameState = {
   elements: [],
   discoveries: [],
@@ -24,7 +24,14 @@ const defaultGameState: GameState = {
   score: 0,
   successfulCombosInARow: 0,
   lastCombinationSuccess: null,
-  viewedElementDetails: null
+  viewedElementDetails: null,
+  combinationCounts: {},
+  favorites: [],
+  currentComboChain: 0,
+  maxComboChain: 0,
+  elementPowers: {},
+  comboMultiplier: 1,
+  totalPowerGained: 0
 };
 
 const CombinationArea: React.FC<CombinationAreaProps> = ({
