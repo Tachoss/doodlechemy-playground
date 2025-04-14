@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Element from './Element';
@@ -42,6 +43,7 @@ const ElementGrid: React.FC<ElementGridProps> = ({
   
   const categories = ['all', ...new Set(elements.map(e => e.category))];
 
+  // Ensure favorites is always an array before using includes
   const safeIsFavorite = (id: string) => Array.isArray(favorites) && favorites.includes(id);
 
   const filteredElements = elements.filter(element => {
