@@ -1,697 +1,450 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { GameStats } from './GameStats';
 import ElementGrid from './ElementGrid';
-import CombinationArea from './CombinationArea';
 import DiscoveryLog from './DiscoveryLog';
-import AchievementsPanel from './AchievementsPanel';
+import CombinationArea from './CombinationArea';
 import ElementDetails from './ElementDetails';
-import { 
-  GameProgress,
-  GameState, 
-  initializeGame, 
-  saveGame, 
-  resetGame,
-  addElementToCombination,
-  removeElementFromCombination,
-  attemptCombination,
-  getDiscoveredElements,
-  getPossibleCombinations,
-  getElementByID,
-  viewElementDetails,
-  getGameStats,
-  getRandomHint,
-  getAIAssistantMessage,
-  toggleFavorite
-} from '@/utils/gameLogic';
+import AchievementsPanel from './AchievementsPanel';
+import { Badge } from './ui/badge';
+import PowerUpPanel from './PowerUpPanel';
 import { toast } from '@/hooks/use-toast';
 import { 
-  FolderHeart, 
-  BookMarked, 
-  HelpCircle, 
-  RefreshCw, 
+  addElementToCombination, 
+  attemptCombination, 
+  getDiscoveredElements,
+  getElementByID,
+  getGameStats,
+  initializeGame,
+  removeElementFromCombination,
+  toggleFavorite, 
+  viewElementDetails
+} from '@/utils/gameLogic';
+import { PowerUp, PowerUpsState, initializePowerUps, activatePowerUp } from '@/utils/powerUpsSystem';
+import { useLocalStorage } from '@/hooks/use-local-storage';
+import { Achievement } from '@/utils/achievementSystem';
+import { Element } from '@/utils/elementData';
+import { Tab, Tabs, TabsList, TabsContent, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from './ui/scroll-area';
+import { 
   Award, 
-  Settings,
-  Info,
-  BarChart3,
-  Layers,
-  X
+  BookOpenText, 
+  Elements, 
+  Filter, 
+  Heart, 
+  Info, 
+  Library, 
+  Search, 
+  Settings, 
+  Sparkles, 
+  Zap 
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { Progress } from '@/components/ui/progress';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Separator } from './ui/separator';
+import { useMobile } from '@/hooks/use-mobile';
+import { Label } from './ui/label';
 
-const defaultGameState: GameState = {
-  elements: [],
-  discoveries: [],
-  combiningElements: [null, null],
-  level: 1,
-  score: 0,
-  successfulCombosInARow: 0,
-  lastCombinationSuccess: null,
-  viewedElementDetails: null,
-  combinationCounts: {},
-  favorites: [],
-  currentComboChain: 0,
-  maxComboChain: 0,
-  elementPowers: {},
-  comboMultiplier: 1,
-  totalPowerGained: 0
-};
-
-const GameContainer: React.FC = () => {
-  const [gameProgress, setGameProgress] = useState<GameProgress | null>(null);
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const [activeTab, setActiveTab] = useState<'elements' | 'discoveries' | 'achievements'>('elements');
-  const [showTutorial, setShowTutorial] = useState(false);
-  const [hasShownIntro, setHasShownIntro] = useState(false);
+const GameContainer = () => {
+  // Initialize game state
+  const [gameProgress, setGameProgress] = useState(initializeGame());
+  const [powerUpsState, setPowerUpsState] = useState<PowerUpsState>(initializePowerUps());
+  const [filter, setFilter] = useState('');
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const isMobile = useMobile();
+  const [lastUnlockedAchievement, setLastUnlockedAchievement] = useState<Achievement | null>(null);
+  const [newlyDiscoveredElement, setNewlyDiscoveredElement] = useState<Element | null>(null);
   const [showSettings, setShowSettings] = useState(false);
-  const [showAchievements, setShowAchievements] = useState(false);
-  const [showStats, setShowStats] = useState(false);
-  const [elementCounts, setElementCounts] = useState<Record<string, number>>({});
-  const [aiAssistantMessage, setAiAssistantMessage] = useState<string>("");
-  const [aiThinking, setAiThinking] = useState(false);
   
-  const combineZoneRef = useRef<HTMLDivElement>(null);
-  
-  useEffect(() => {
-    const initialGameProgress = initializeGame();
-    setGameProgress(initialGameProgress);
-    
-    setAiAssistantMessage(getAIAssistantMessage(initialGameProgress.gameState));
+  const { gameState } = gameProgress;
+  const discoveredElements = getDiscoveredElements(gameState);
 
-    const hasSeenTutorial = localStorage.getItem('elementAlchemyTutorialSeen');
-    if (!hasSeenTutorial) {
-      setShowTutorial(true);
-      localStorage.setItem('elementAlchemyTutorialSeen', 'true');
-    }
-  }, []);
-  
-  const { gameState = defaultGameState, achievementState = { achievements: [], lastUnlocked: null } } = gameProgress || {};
-  
-  const safeGetDiscoveredElements = () => {
-    if (!gameState || !gameState.elements) return [];
-    return getDiscoveredElements(gameState);
-  };
-  
-  const safeGetGameStats = () => {
-    if (!gameState) return {
-      totalElements: 0,
-      discoveredElements: 0,
-      percentComplete: 0,
-      basicElements: 0,
-      compoundElements: 0,
-      advancedElements: 0,
-      rareElements: 0,
-      scientificElements: 0
-    };
-    return getGameStats(gameState);
-  };
-  
-  const discoveredElements = safeGetDiscoveredElements();
-  const stats = safeGetGameStats();
-  
+  // Set last unlocked achievement when it changes
   useEffect(() => {
-    if (!gameState || !gameState.discoveries) {
-      setElementCounts({});
-      return;
+    if (gameProgress.achievementState.lastUnlocked) {
+      setLastUnlockedAchievement(gameProgress.achievementState.lastUnlocked);
     }
-    
-    const counts: Record<string, number> = {};
-    gameState.discoveries.forEach(discovery => {
-      discovery.elements.forEach(elementId => {
-        counts[elementId] = (counts[elementId] || 0) + 1;
-      });
-    });
-    setElementCounts(counts);
-  }, [gameState?.discoveries]);
-  
-  useEffect(() => {
-    if (gameProgress) {
-      saveGame(gameProgress);
-      
-      setAiThinking(true);
-      setTimeout(() => {
-        setAiAssistantMessage(getAIAssistantMessage(gameProgress.gameState));
-        setAiThinking(false);
-      }, 800);
-    }
-  }, [gameProgress]);
+  }, [gameProgress.achievementState.lastUnlocked]);
 
-  useEffect(() => {
-    const hasSeenTutorial = localStorage.getItem('elementAlchemyTutorialSeen');
-    if (!hasSeenTutorial && !hasShownIntro) {
-      setShowTutorial(true);
-      setHasShownIntro(true);
-      
-      setTimeout(() => {
-        localStorage.setItem('elementAlchemyTutorialSeen', 'true');
-      }, 2000);
-    }
-  }, [hasShownIntro]);
-
-  const handleElementClick = (elementId: string) => {
-    setGameProgress(prevState => prevState ? addElementToCombination(prevState, elementId) : prevState);
+  const handleDrop = (elementId: string) => {
+    setGameProgress(addElementToCombination(gameProgress, elementId));
   };
 
   const handleRemoveElement = (elementId: string) => {
-    setGameProgress(prevState => prevState ? removeElementFromCombination(prevState, elementId) : prevState);
+    setGameProgress(removeElementFromCombination(gameProgress, elementId));
   };
 
   const handleCombine = () => {
-    if (!gameProgress) return;
-    
     const { newGameProgress, success, newElement } = attemptCombination(gameProgress);
-    
     setGameProgress(newGameProgress);
-    
-    if (!success) {
-      setTimeout(() => {
-        toast({
-          title: "No Reaction",
-          description: "These elements don't combine into anything.",
-          variant: "destructive",
-        });
-      }, 500);
-    }
-  };
 
-  const handleReset = () => {
-    const freshGame = resetGame();
-    setGameProgress(freshGame);
-    setShowResetConfirm(false);
-    toast({
-      title: "Game Reset",
-      description: "Your progress has been reset.",
-    });
-    
-    setAiAssistantMessage(getAIAssistantMessage(freshGame.gameState));
-  };
-
-  const checkForHints = () => {
-    if (!gameState) return;
-    
-    const hintResult = getRandomHint(gameState);
-    
-    if (hintResult.hint) {
-      toast({
-        title: "Hint",
-        description: hintResult.hint,
-        variant: "default"
-      });
-      
-      if (hintResult.elements) {
-        setAiAssistantMessage(`AI Suggestion: ${hintResult.hint}`);
+    if (success && newElement) {
+      if (!newGameProgress.gameState.elements.find(e => e.id === newElement.id)?.discovered) {
+        setNewlyDiscoveredElement(newElement);
       }
     }
   };
-  
-  const handleViewElementDetails = (elementId: string) => {
-    setGameProgress(prevState => prevState ? viewElementDetails(prevState, elementId) : prevState);
-  };
-  
-  const handleCloseElementDetails = () => {
-    setGameProgress(prevState => prevState ? viewElementDetails(prevState, null) : prevState);
+
+  const handleViewDetails = (elementId: string | null) => {
+    setGameProgress(viewElementDetails(gameProgress, elementId));
   };
 
-  const viewedElement = gameState?.viewedElementDetails 
-    ? getElementByID(gameState, gameState.viewedElementDetails) 
-    : null;
-    
-  const viewedElementDiscovery = viewedElement && gameState?.discoveries 
-    ? gameState.discoveries.find(d => d.result === viewedElement.id) 
-    : null;
+  const handleToggleFavorite = (elementId: string) => {
+    setGameProgress(toggleFavorite(gameProgress, elementId));
+  };
 
-  if (!gameProgress) {
-    return (
-      <div className="container mx-auto px-4 py-8 flex justify-center items-center h-screen">
-        <div className="text-center glass-panel p-8 rounded-xl">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-lg font-medium">Loading Element Alchemy...</p>
-          <p className="text-sm text-muted-foreground mt-2">Preparing your alchemical workspace...</p>
-        </div>
-      </div>
+  const handleActivatePowerUp = (powerUpId: string) => {
+    const { newGameState, newPowerUpState } = activatePowerUp(
+      gameState, 
+      powerUpId, 
+      powerUpsState
     );
-  }
+    
+    setGameProgress({
+      ...gameProgress,
+      gameState: newGameState
+    });
+    
+    setPowerUpsState(newPowerUpState);
+  };
+
+  const filteredElements = activeCategory 
+    ? discoveredElements.filter(element => element.category === activeCategory) 
+    : discoveredElements;
+
+  const searchFilteredElements = filter 
+    ? filteredElements.filter(element => 
+        element.name.toLowerCase().includes(filter.toLowerCase()) || 
+        element.symbol.toLowerCase().includes(filter.toLowerCase())
+      ) 
+    : filteredElements;
+
+  const displayedElements = showFavoritesOnly 
+    ? searchFilteredElements.filter(element => gameState.favorites.includes(element.id)) 
+    : searchFilteredElements;
+
+  // Used for category counts in tabs
+  const categoryElementCounts = discoveredElements.reduce((acc, element) => {
+    acc[element.category] = (acc[element.category] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const stats = getGameStats(gameState);
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
-      <div className="glass-panel rounded-2xl p-6 mb-8 relative">
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
-          <motion.div 
-            className="flex flex-col sm:flex-row items-center mb-4 sm:mb-0"
-            initial={{ y: -20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.5 }}
-          >
-            <h1 className="text-3xl font-bold flex items-center">
-              <span className="mr-1">Element</span>
-              <span className="relative">
-                Alchemy
-                <motion.span 
-                  className="absolute -top-2 -right-2 text-base text-primary"
-                  initial={{ scale: 0 }}
-                  animate={{ scale: [0, 1.2, 1] }}
-                  transition={{ delay: 0.5, duration: 0.4 }}
-                >
-                  ✨
-                </motion.span>
-              </span>
-            </h1>
-            
-            <div className="flex items-center mt-2 sm:mt-0 sm:ml-4">
-              <div className="bg-primary/20 rounded-full px-3 py-1 text-sm flex items-center">
-                <motion.div 
-                  animate={{ rotate: [0, 360] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                  className="mr-1"
-                >
-                  <Layers size={14} />
-                </motion.div>
-                <span>Level {gameState.level}</span>
-              </div>
-              <div className="bg-amber-500/20 rounded-full px-3 py-1 text-sm flex items-center ml-2">
-                <Award size={14} className="mr-1" />
-                <span>{gameState.score} pts</span>
-              </div>
-            </div>
-          </motion.div>
-          
-          <div>
-            <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-center">
-              <motion.div 
-                className="text-sm font-medium bg-white/50 dark:bg-black/30 rounded-full px-3 py-1 flex items-center gap-1"
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 0.3 }}
-              >
-                <FolderHeart size={14} />
-                <span>{stats.discoveredElements} / {stats.totalElements}</span>
-              </motion.div>
-              
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="rounded-full"
-                      onClick={() => setShowAchievements(true)}
-                    >
-                      <Award size={14} className="mr-1" />
-                      <span>{achievementState.achievements.filter(a => a.unlocked).length}</span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>View Achievements</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="rounded-full hover:bg-secondary"
-                      onClick={checkForHints}
-                    >
-                      <HelpCircle size={14} className="mr-1" />
-                      <span>Hint</span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Get a hint for a new combination</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="rounded-full"
-                      onClick={() => setShowStats(true)}
-                    >
-                      <BarChart3 size={14} />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>View Statistics</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              
-              {showResetConfirm ? (
-                <div className="flex items-center gap-2">
-                  <Button 
-                    onClick={handleReset} 
-                    variant="destructive"
-                    size="sm"
-                    className="rounded-full"
-                  >
-                    Confirm
-                  </Button>
-                  <Button 
-                    onClick={() => setShowResetConfirm(false)} 
-                    variant="secondary"
-                    size="sm"
-                    className="rounded-full"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              ) : (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button 
-                        variant="ghost"
-                        size="sm"
-                        className="rounded-full"
-                        onClick={() => setShowResetConfirm(true)}
-                      >
-                        <RefreshCw size={14} />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Reset Game</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
-            </div>
-          </div>
-        </div>
-        
-        <motion.div
-          className="mb-4 bg-primary/10 rounded-lg p-3 text-sm"
+    <div className="container mx-auto px-4 md:px-6 pb-8 relative">
+      <header className="py-6 text-center mb-6">
+        <motion.h1 
+          className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-violet-600"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          Element Alchemy
+        </motion.h1>
+        <motion.p 
+          className="text-gray-600 dark:text-gray-300 mt-2"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
-        >
-          <div className="flex items-start gap-2">
-            <div className="mt-0.5 text-primary">
-              {aiThinking ? (
-                <motion.div 
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                >
-                  <RefreshCw size={16} />
-                </motion.div>
-              ) : (
-                <Info size={16} />
-              )}
-            </div>
-            <p>{aiThinking ? "Analyzing your progress..." : aiAssistantMessage}</p>
-          </div>
-        </motion.div>
-        
-        <motion.div 
-          className="mb-8"
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.2, duration: 0.5 }}
-          ref={combineZoneRef}
         >
-          <CombinationArea 
-            gameState={gameState}
-            onRemoveElement={handleRemoveElement}
-            onCombine={handleCombine}
-          />
-        </motion.div>
+          Combine elements to discover the world
+        </motion.p>
         
-        <motion.div
-          className="w-full bg-white/10 dark:bg-black/20 rounded-full h-2 mb-4"
-          initial={{ opacity: 0, scaleX: 0 }}
-          animate={{ opacity: 1, scaleX: 1 }}
-          transition={{ delay: 0.7, duration: 0.5 }}
-        >
-          <Progress value={stats.percentComplete} className="h-2" />
-          <div className="flex justify-between text-xs mt-1 text-muted-foreground">
-            <span>Progress</span>
-            <span>{stats.percentComplete}%</span>
-          </div>
-        </motion.div>
-      </div>
-      
-      <div className="flex lg:hidden mb-4 border-b bg-white/5 backdrop-blur-sm rounded-t-lg overflow-hidden">
-        <button
-          className={`flex-1 py-3 px-4 text-center transition-colors ${activeTab === 'elements' ? 'border-b-2 border-primary font-medium bg-primary/10' : 'text-muted-foreground'}`}
-          onClick={() => setActiveTab('elements')}
-        >
-          <FolderHeart size={16} className="inline mr-1" />
-          Elements
-        </button>
-        <button
-          className={`flex-1 py-3 px-4 text-center transition-colors ${activeTab === 'discoveries' ? 'border-b-2 border-primary font-medium bg-primary/10' : 'text-muted-foreground'}`}
-          onClick={() => setActiveTab('discoveries')}
-        >
-          <BookMarked size={16} className="inline mr-1" />
-          Discoveries
-        </button>
-        <button
-          className={`flex-1 py-3 px-4 text-center transition-colors ${activeTab === 'achievements' ? 'border-b-2 border-primary font-medium bg-primary/10' : 'text-muted-foreground'}`}
-          onClick={() => setActiveTab('achievements')}
-        >
-          <Award size={16} className="inline mr-1" />
-          Achievements
-        </button>
-      </div>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <motion.div 
-          className={`lg:col-span-2 ${activeTab === 'elements' || window.innerWidth >= 1024 ? 'block' : 'hidden'}`}
-          initial={{ x: -20, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ delay: 0.4, duration: 0.5 }}
+          className="flex items-center justify-center mt-4 gap-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3, duration: 0.5 }}
         >
-          <div className="glass-panel rounded-2xl p-6">
-            <h2 className="text-xl font-semibold mb-4 flex items-center">
-              <FolderHeart size={18} className="mr-2" />
-              Elements
-            </h2>
-            <ElementGrid 
-              elements={discoveredElements}
-              onElementClick={handleElementClick}
-              selectedElements={gameState.combiningElements as string[]}
-              combineZoneRef={combineZoneRef}
-              onElementDetails={handleViewElementDetails}
-              onElementFavorite={(id) => setGameProgress(prevState => prevState ? toggleFavorite(prevState, id) : prevState)}
-              favorites={gameState.favorites || []}
-              combinationCounts={gameState.combinationCounts || {}}
-              elementPowers={gameState.elementPowers || {}}
-              comboMultiplier={gameState.comboMultiplier || 1}
-            />
-          </div>
+          <Badge variant="outline" className="bg-white/50 dark:bg-slate-800/50 shadow-sm">
+            <Sparkles className="h-3.5 w-3.5 mr-1 text-yellow-500" />
+            Level {gameState.level}
+          </Badge>
+          
+          <Badge variant="outline" className="bg-white/50 dark:bg-slate-800/50 shadow-sm">
+            <Library className="h-3.5 w-3.5 mr-1 text-indigo-500" />
+            {stats.discoveredElements} / {stats.totalElements}
+          </Badge>
+          
+          <Badge variant="outline" className="bg-white/50 dark:bg-slate-800/50 shadow-sm">
+            <Zap className="h-3.5 w-3.5 mr-1 text-amber-500" />
+            {gameState.totalPowerGained} Power
+          </Badge>
         </motion.div>
-        
-        <motion.div
-          className={`${activeTab === 'discoveries' || window.innerWidth >= 1024 ? 'block' : 'hidden'}`}
-          initial={{ x: 20, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ delay: 0.6, duration: 0.5 }}
-        >
-          <div className="glass-panel rounded-2xl p-6">
-            <h2 className="text-xl font-semibold mb-4 flex items-center">
-              <BookMarked size={18} className="mr-2" />
-              Discoveries
-            </h2>
-            <DiscoveryLog 
-              discoveries={gameState.discoveries || []}
-              elements={gameState.elements || []}
-              onElementClick={handleViewElementDetails}
-            />
-          </div>
-        </motion.div>
-        
-        <motion.div
-          className={`${activeTab === 'achievements' && window.innerWidth < 1024 ? 'block' : 'hidden'}`}
-          initial={{ x: 20, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ delay: 0.6, duration: 0.5 }}
-        >
-          <div className="glass-panel rounded-2xl p-6">
-            <h2 className="text-xl font-semibold mb-4 flex items-center">
-              <Award size={18} className="mr-2" />
-              Achievements
-            </h2>
-            <div className="mb-4">
-              <div className="flex justify-between text-sm mb-1">
-                <span>{achievementState.achievements.filter(a => a.unlocked).length} of {achievementState.achievements.length} unlocked</span>
-                <span>{Math.round((achievementState.achievements.filter(a => a.unlocked).length / achievementState.achievements.length) * 100)}%</span>
-              </div>
-              <Progress value={(achievementState.achievements.filter(a => a.unlocked).length / achievementState.achievements.length) * 100} className="h-2" />
-            </div>
-            <div className="space-y-2 max-h-[400px] overflow-y-auto">
-              {achievementState.achievements
-                .filter(a => a.unlocked)
-                .slice(0, 5)
-                .map(achievement => (
-                  <div key={achievement.id} className="bg-white/20 dark:bg-gray-800/20 p-3 rounded-lg flex items-start">
-                    <div className="mr-3 text-xl">{achievement.icon}</div>
-                    <div>
-                      <div className="font-medium text-sm">{achievement.name}</div>
-                      <div className="text-xs text-gray-500">{achievement.description}</div>
-                    </div>
-                  </div>
-                ))}
-            </div>
-            <Button 
-              className="w-full mt-4"
-              onClick={() => setShowAchievements(true)}
-              variant="outline"
-            >
-              View All Achievements
-            </Button>
-          </div>
-        </motion.div>
-      </div>
-      
-      <AnimatePresence>
-        {showTutorial && (
-          <motion.div 
-            className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setShowTutorial(false)}
+      </header>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
           >
-            <motion.div 
-              className="bg-white dark:bg-gray-900 p-6 rounded-xl max-w-md w-full shadow-xl"
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              onClick={e => e.stopPropagation()}
-            >
-              <h2 className="text-2xl font-bold mb-4">Welcome to Element Alchemy</h2>
-              <div className="space-y-4 mb-6">
-                <p>Combine elements to discover new ones in this alchemical adventure!</p>
-                <ol className="list-decimal pl-5 space-y-2">
-                  <li><strong>Drag and drop</strong> elements into the combination area</li>
-                  <li><strong>Experiment</strong> with different combinations</li>
-                  <li><strong>Discover</strong> all elements</li>
-                  <li><strong>Earn achievements</strong> as you progress</li>
-                </ol>
-                <p>Start with the basic elements: Air, Water, Fire, and Earth.</p>
+            <CombinationArea 
+              gameState={gameState}
+              onRemoveElement={handleRemoveElement}
+              onCombine={handleCombine}
+            />
+          </motion.div>
+          
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1, duration: 0.5 }}
+          >
+            <Tabs defaultValue="elements" className="w-full">
+              <div className="flex items-center justify-between mb-4">
+                <TabsList className="grid grid-cols-3">
+                  <TabsTrigger value="elements" className="flex items-center">
+                    <Elements className="h-4 w-4 mr-2" />
+                    <span className="hidden sm:inline">Elements</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="discoveries" className="flex items-center">
+                    <BookOpenText className="h-4 w-4 mr-2" />
+                    <span className="hidden sm:inline">Discoveries</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="achievements" className="flex items-center">
+                    <Award className="h-4 w-4 mr-2" />
+                    <span className="hidden sm:inline">Achievements</span>
+                  </TabsTrigger>
+                </TabsList>
+                
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowSettings(!showSettings)}
+                    className="h-8 w-8 p-0"
+                  >
+                    <Settings className="h-4 w-4" />
+                    <span className="sr-only">Settings</span>
+                  </Button>
+                </div>
               </div>
-              <Button 
-                className="w-full bg-gradient-to-r from-primary to-primary/80" 
-                onClick={() => setShowTutorial(false)}
-              >
-                Let's Begin!
-              </Button>
-            </motion.div>
+              
+              <AnimatePresence>
+                {showSettings && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mb-4 overflow-hidden"
+                  >
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+                      <h3 className="text-sm font-medium mb-3 flex items-center">
+                        <Filter className="h-4 w-4 mr-2 text-gray-500" />
+                        Display Options
+                      </h3>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="element-search" className="text-xs">Search Elements</Label>
+                          <div className="flex mt-1">
+                            <Input
+                              id="element-search"
+                              type="text"
+                              placeholder="Search..."
+                              value={filter}
+                              onChange={(e) => setFilter(e.target.value)}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <Label className="text-xs">Options</Label>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Button
+                              variant={showFavoritesOnly ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                              className="h-8 text-xs"
+                            >
+                              <Heart className={`h-3.5 w-3.5 mr-1 ${showFavoritesOnly ? 'text-white' : 'text-pink-500'}`} />
+                              Favorites
+                            </Button>
+                            
+                            {activeCategory && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setActiveCategory(null)}
+                                className="h-8 text-xs"
+                              >
+                                <Filter className="h-3.5 w-3.5 mr-1" />
+                                Clear Filters
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              
+              <TabsContent value="elements" className="mt-0">
+                <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+                  <div className="p-4">
+                    <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-thin">
+                      <Button
+                        variant={activeCategory === null ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setActiveCategory(null)}
+                        className="h-8"
+                      >
+                        All ({discoveredElements.length})
+                      </Button>
+                      {Object.keys(categoryElementCounts).map(category => (
+                        <Button
+                          key={category}
+                          variant={activeCategory === category ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setActiveCategory(category)}
+                          className="h-8 whitespace-nowrap"
+                        >
+                          {category.charAt(0).toUpperCase() + category.slice(1)} ({categoryElementCounts[category]})
+                        </Button>
+                      ))}
+                    </div>
+                    
+                    <ScrollArea className="h-[50vh]">
+                      <ElementGrid 
+                        elements={displayedElements} 
+                        onDrop={handleDrop}
+                        onElementClick={handleViewDetails}
+                        favorites={gameState.favorites}
+                        onToggleFavorite={handleToggleFavorite}
+                        elementPowers={gameState.elementPowers}
+                      />
+                    </ScrollArea>
+                  </div>
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="discoveries" className="mt-0">
+                <DiscoveryLog 
+                  discoveries={gameState.discoveries}
+                  elements={gameState.elements}
+                  onElementClick={handleViewDetails}
+                />
+              </TabsContent>
+              
+              <TabsContent value="achievements" className="mt-0">
+                <AchievementsPanel 
+                  achievements={gameProgress.achievementState.achievements} 
+                  lastUnlocked={gameProgress.achievementState.lastUnlocked}
+                />
+              </TabsContent>
+            </Tabs>
+          </motion.div>
+        </div>
+
+        <div className="space-y-6">
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
+          >
+            <PowerUpPanel 
+              powerUps={powerUpsState.availablePowerUps}
+              gameState={gameState}
+              onActivate={handleActivatePowerUp}
+            />
+          </motion.div>
+          
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3, duration: 0.5 }}
+          >
+            <GameStats 
+              totalPowerGained={gameState.totalPowerGained} 
+              elementPowers={gameState.elementPowers}
+              elements={gameState.elements}
+              comboMultiplier={gameState.comboMultiplier}
+            />
+          </motion.div>
+          
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.4, duration: 0.5 }}
+          >
+            <AnimatePresence>
+              {gameState.viewedElementDetails && (
+                <ElementDetails 
+                  element={getElementByID(gameState, gameState.viewedElementDetails)}
+                  onClose={() => handleViewDetails(null)}
+                  isFavorite={gameState.favorites.includes(gameState.viewedElementDetails)}
+                  onToggleFavorite={() => handleToggleFavorite(gameState.viewedElementDetails)}
+                  powerLevel={gameState.elementPowers[gameState.viewedElementDetails] || 0}
+                />
+              )}
+            </AnimatePresence>
+          </motion.div>
+        </div>
+      </div>
+
+      {/* Enhanced achievement notification */}
+      <AnimatePresence>
+        {lastUnlockedAchievement && (
+          <motion.div
+            className="fixed bottom-4 right-4 bg-gradient-to-r from-yellow-400 to-amber-500 text-white px-4 py-3 rounded-lg shadow-lg max-w-md"
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 50, scale: 0.9 }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+          >
+            <div className="flex items-center">
+              <Award className="h-12 w-12 mr-3 text-white" />
+              <div>
+                <h3 className="font-bold text-lg">Achievement Unlocked!</h3>
+                <p className="text-yellow-100">{lastUnlockedAchievement.name}</p>
+                <p className="text-sm text-yellow-50 mt-1">{lastUnlockedAchievement.description}</p>
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
-      
+
+      {/* New element discovery celebration animation */}
       <AnimatePresence>
-        {showAchievements && (
-          <AchievementsPanel 
-            achievements={achievementState.achievements}
-            onClose={() => setShowAchievements(false)}
-          />
-        )}
-      </AnimatePresence>
-      
-      <AnimatePresence>
-        {viewedElement && (
-          <ElementDetails 
-            element={viewedElement}
-            onClose={handleCloseElementDetails}
-            discovery={viewedElementDiscovery}
-            elementCounts={elementCounts}
-          />
-        )}
-      </AnimatePresence>
-      
-      <AnimatePresence>
-        {showStats && (
-          <motion.div 
-            className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
+        {newlyDiscoveredElement && (
+          <motion.div
+            className="fixed inset-0 flex items-center justify-center z-50 bg-black/60 backdrop-blur-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={() => setShowStats(false)}
+            onClick={() => setNewlyDiscoveredElement(null)}
           >
-            <motion.div 
-              className="bg-white dark:bg-gray-900 p-6 rounded-xl max-w-md w-full shadow-xl"
-              initial={{ scale: 0.9, y: 20 }}
+            <motion.div
+              className="bg-white dark:bg-slate-800 rounded-xl p-6 max-w-md text-center shadow-xl"
+              initial={{ scale: 0.8, y: 20 }}
               animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
+              exit={{ scale: 0.8, y: 20 }}
+              transition={{ type: "spring", stiffness: 500, damping: 30 }}
               onClick={e => e.stopPropagation()}
             >
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold flex items-center">
-                  <BarChart3 className="mr-2" />
-                  Game Statistics
-                </h2>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setShowStats(false)}
+              <Sparkles className="h-12 w-12 mx-auto text-yellow-500 mb-4" />
+              <h2 className="text-2xl font-bold mb-2">New Discovery!</h2>
+              <p className="text-lg font-medium mb-4 text-primary">{newlyDiscoveredElement.name}</p>
+              
+              <div className="flex justify-center mb-6">
+                <div 
+                  className="w-20 h-20 rounded-full flex items-center justify-center text-3xl font-semibold"
+                  style={{ backgroundColor: `${newlyDiscoveredElement.color}30` }}
                 >
-                  <X size={16} />
-                </Button>
-              </div>
-              
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-sm font-medium mb-2">Elements Discovered</h3>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span>{stats.discoveredElements} of {stats.totalElements}</span>
-                    <span>{stats.percentComplete}%</span>
-                  </div>
-                  <Progress value={stats.percentComplete} className="h-2" />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-white/10 dark:bg-gray-800/20 p-3 rounded-lg">
-                    <div className="text-xs text-gray-500">Basic Elements</div>
-                    <div className="text-lg font-semibold">{stats.basicElements}</div>
-                  </div>
-                  <div className="bg-white/10 dark:bg-gray-800/20 p-3 rounded-lg">
-                    <div className="text-xs text-gray-500">Compounds</div>
-                    <div className="text-lg font-semibold">{stats.compoundElements}</div>
-                  </div>
-                  <div className="bg-white/10 dark:bg-gray-800/20 p-3 rounded-lg">
-                    <div className="text-xs text-gray-500">Advanced</div>
-                    <div className="text-lg font-semibold">{stats.advancedElements}</div>
-                  </div>
-                  <div className="bg-white/10 dark:bg-gray-800/20 p-3 rounded-lg">
-                    <div className="text-xs text-gray-500">Scientific</div>
-                    <div className="text-lg font-semibold">{stats.scientificElements}</div>
-                  </div>
-                </div>
-                
-                <div>
-                  <h3 className="text-sm font-medium mb-2">Combinations Found</h3>
-                  <div className="bg-white/10 dark:bg-gray-800/20 p-3 rounded-lg">
-                    <div className="text-xs text-gray-500">Total Discoveries</div>
-                    <div className="text-lg font-semibold">{gameState.discoveries ? gameState.discoveries.length : 0}</div>
-                  </div>
-                </div>
-                
-                <div>
-                  <h3 className="text-sm font-medium mb-2">Game Progress</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-white/10 dark:bg-gray-800/20 p-3 rounded-lg">
-                      <div className="text-xs text-gray-500">Level</div>
-                      <div className="text-lg font-semibold">{gameState.level}</div>
-                    </div>
-                    <div className="bg-white/10 dark:bg-gray-800/20 p-3 rounded-lg">
-                      <div className="text-xs text-gray-500">Score</div>
-                      <div className="text-lg font-semibold">{gameState.score}</div>
-                    </div>
-                  </div>
+                  {newlyDiscoveredElement.symbol}
                 </div>
               </div>
               
-              <Button 
-                className="w-full mt-6 bg-gradient-to-r from-primary to-primary/80" 
-                onClick={() => setShowStats(false)}
-              >
-                Close
+              <p className="text-gray-600 dark:text-gray-300 mb-6">{newlyDiscoveredElement.description}</p>
+              
+              <Button onClick={() => setNewlyDiscoveredElement(null)}>
+                Continue
               </Button>
             </motion.div>
           </motion.div>
