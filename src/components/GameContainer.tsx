@@ -64,9 +64,16 @@ const GameContainer = () => {
   // Set last unlocked achievement when it changes
   useEffect(() => {
     if (gameProgress.achievementState.lastUnlocked) {
-      setLastUnlockedAchievement(gameProgress.achievementState.lastUnlocked);
+      // Find the achievement object instead of just using the ID string
+      const achievementObj = gameProgress.achievementState.achievements.find(
+        a => a.id === gameProgress.achievementState.lastUnlocked
+      );
+      
+      if (achievementObj) {
+        setLastUnlockedAchievement(achievementObj);
+      }
     }
-  }, [gameProgress.achievementState.lastUnlocked]);
+  }, [gameProgress.achievementState.lastUnlocked, gameProgress.achievementState.achievements]);
 
   const handleDrop = (elementId: string) => {
     setGameProgress(addElementToCombination(gameProgress, elementId));
