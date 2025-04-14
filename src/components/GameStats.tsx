@@ -1,11 +1,10 @@
-
 import React from 'react';
 import { motion } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 import { Card } from '@/components/ui/card';
 import { Element } from '@/utils/elementData';
 import { Progress } from '@/components/ui/progress';
-import { Sparkles, TrendingUp, Award, Crown, Fire } from 'lucide-react';
+import { Sparkles, TrendingUp, Award, Crown, Flame } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface GameStatsProps {
@@ -21,25 +20,21 @@ export const GameStats: React.FC<GameStatsProps> = ({
   elements,
   comboMultiplier
 }) => {
-  // Get top elements sorted by power
   const topElements = elements
     .filter(e => elementPowers[e.id])
     .sort((a, b) => (elementPowers[b.id] || 0) - (elementPowers[a.id] || 0))
     .slice(0, 5);
     
-  // Create data for chart visualization
   const chartData = topElements.map(element => ({
     name: element.name.length > 6 ? element.name.substring(0, 6) + '...' : element.name,
     power: elementPowers[element.id] || 0,
     color: element.color
   }));
 
-  // Calculate if we have a new high multiplier
   const isHighMultiplier = comboMultiplier > 1.5;
 
   return (
     <Card className="p-4 shadow-lg border-t-4 border-primary/50 overflow-hidden relative">
-      {/* Decorative background elements for visual flair */}
       <div className="absolute right-0 top-0 w-32 h-32 bg-gradient-radial from-primary/10 to-transparent opacity-60 rounded-full -mr-10 -mt-10" />
       <div className="absolute left-0 bottom-0 w-24 h-24 bg-gradient-radial from-secondary/10 to-transparent opacity-50 rounded-full -ml-10 -mb-10" />
       
@@ -118,7 +113,7 @@ export const GameStats: React.FC<GameStatsProps> = ({
                 animate={{ rotate: [0, 5, 0, -5, 0] }}
                 transition={{ repeat: Infinity, duration: 1.5 }}
               >
-                <Fire className="w-4 h-4 text-amber-500" />
+                <Flame className="w-4 h-4 text-amber-500" />
               </motion.div>
             )}
           </motion.div>
@@ -178,7 +173,7 @@ export const GameStats: React.FC<GameStatsProps> = ({
           transition={{ duration: 0.5, delay: 0.3 }}
         >
           <h4 className="text-sm font-medium mb-2 flex items-center">
-            <Fire className="w-4 h-4 mr-1 text-orange-500" />
+            <Flame className="w-4 h-4 mr-1 text-orange-500" />
             Most Powerful Elements
           </h4>
           {topElements.map((element, index) => (
