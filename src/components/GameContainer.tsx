@@ -37,7 +37,8 @@ import {
   Search, 
   Settings, 
   Sparkles, 
-  Zap 
+  Zap,
+  Atom // Replacing 'Elements' with 'Atom' which is available in lucide-react
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
