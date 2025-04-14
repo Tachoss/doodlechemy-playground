@@ -363,15 +363,6 @@ export const combineElements = (
   };
 };
 
-export const getDiscoveredElements = (gameState: GameState): Element[] => {
-  // Add null check to prevent accessing properties of undefined
-  if (!gameState || !gameState.elements) {
-    console.error('GameState or gameState.elements is undefined in getDiscoveredElements');
-    return [];
-  }
-  return gameState.elements.filter(e => e.discovered);
-};
-
 export const getElementByID = (gameState: GameState, id: string): Element | undefined => {
   // Add null check to prevent accessing properties of undefined
   if (!gameState || !gameState.elements) {
@@ -381,79 +372,155 @@ export const getElementByID = (gameState: GameState, id: string): Element | unde
   return gameState.elements.find(e => e.id === id);
 };
 
-export const addElementToCombination = (
-  gameProgress: GameProgress, 
-  elementId: string
-): GameProgress => {
-  // Add null checks
-  if (!gameProgress || !gameProgress.gameState) {
-    console.error('Invalid gameProgress in addElementToCombination');
-    return gameProgress || initializeGame();
+export const getDiscoveredElements = (gameState: GameState): Element[] => {
+  // Add null check to prevent accessing properties of undefined
+  if (!gameState || !gameState.elements) {
+    console.error('GameState or gameState.elements is undefined in getDiscoveredElements');
+    return [];
+  }
+  return gameState.elements.filter(e => e.discovered);
+};
+
+export const getElementsByCategory = (gameState: GameState): Record<string, Element[]> => {
+  if (!gameState || !gameState.elements) {
+    return {};
   }
   
-  const { gameState, achievementState } = gameProgress;
-  const [element1, element2] = gameState.combiningElements;
+  const discovered = getDiscoveredElements(gameState);
   
-  // If both slots are full, do nothing
-  if (element1 !== null && element2 !== null) {
-    return gameProgress;
+  return discovered.reduce((acc, element) => {
+    const category = element.category;
+    if (!acc[category]) {
+      acc[category] = [];
+    }
+    acc[category].push(element);
+    return acc;
+  }, {} as Record<string, Element[]>);
+};
+
+export const getGameStats = (gameState: GameState): {
+  totalElements: number;
+  discoveredElements: number;
+  percentComplete: number;
+  basicElements: number;
+  compoundElements: number;
+  advancedElements: number;
+  rareElements: number;
+  scientificElements: number;
+} => {
+  // Add null check to prevent accessing properties of undefined
+  if (!gameState || !gameState.elements) {
+    console.error('GameState or gameState.elements is undefined in getGameStats');
+    return {
+      totalElements: 0,
+      discoveredElements: 0,
+      percentComplete: 0,
+      basicElements: 0,
+      compoundElements: 0,
+      advancedElements: 0,
+      rareElements: 0,
+      scientificElements: 0
+    };
   }
   
-  // If the element is already selected, do nothing
-  if (element1 === elementId || element2 === elementId) {
-    return gameProgress;
+  const discovered = getDiscoveredElements(gameState);
+  
+  // Add null check for discovered
+  if (!discovered) {
+    return {
+      totalElements: gameState.elements.length,
+      discoveredElements: 0,
+      percentComplete: 0,
+      basicElements: 0,
+      compoundElements: 0,
+      advancedElements: 0,
+      rareElements: 0,
+      scientificElements: 0
+    };
   }
   
-  // Add element to first empty slot
-  const newCombiningElements: [string | null, string | null] = element1 === null 
-    ? [elementId, element2] 
-    : [element1, elementId];
+  const total = gameState.elements.length;
   
   return {
-    gameState: {
-      ...gameState,
-      combiningElements: newCombiningElements
-    },
-    achievementState
+    totalElements: total,
+    discoveredElements: discovered.length,
+    percentComplete: Math.round((discovered.length / total) * 100),
+    basicElements: discovered.filter(e => e.category === 'basic').length,
+    compoundElements: discovered.filter(e => e.category === 'compound').length,
+    advancedElements: discovered.filter(e => e.category === 'advanced').length,
+    rareElements: discovered.filter(e => e.category === 'rare').length,
+    scientificElements: discovered.filter(e => e.category === 'scientific').length
   };
 };
 
-export const removeElementFromCombination = (
-  gameProgress: GameProgress, 
-  elementId: string
+export const getRandomHint = (gameState: GameState): { 
+  hint: string, 
+  elements?: [string, string] 
+} => {
+  if (!gameState || !gameState.elements) {
+    return { hint: "Try combining the basic elements to get started!" };
+  }
+  
+  const possibleCombinations = getPossibleCombinations(gameState);
+  
+  // If no possible combinations are found
+  if (!possibleCombinations || possibleCombinations.length === 0) {
+    const discoveredElements = getDiscoveredElements(gameState);
+    
+    // Check if the player has discovered almost everything
+    if (discoveredElements.length > gameState.elements.length * 0.8) {
+      return { hint: "You've discovered most elements! Keep combining to find the rare ones." };
+    }
+    
+    // If they're stuck at the beginning
+    if (discoveredElements.length <= 6) {
+      return { hint: "Try combining the basic elements (Air, Water, Fire, Earth) in different ways." };
+    }
+    
+    // General hint
+    return { hint: "Try combining elements you haven't paired yet." };
+  }
+  
+  // Get a random combination hint
+  const randomCombo = possibleCombinations[Math.floor(Math.random() * possibleCombinations.length)];
+  const element1 = gameState.elements.find(e => e.id === randomCombo.elements[0]);
+  const element2 = gameState.elements.find(e => e.id === randomCombo.elements[1]);
+  
+  if (element1 && element2) {
+    // Different hint types for variety
+    const hintTypes = [
+      `Try combining ${element1.name} with ${element2.name}.`,
+      `What happens when ${element1.name} meets ${element2.name}?`,
+      `Have you tried mixing ${element1.name} and ${element2.name} yet?`,
+      `A magical reaction might occur between ${element1.name} and ${element2.name}.`,
+      `${element1.name} and ${element2.name} might create something interesting!`
+    ];
+    
+    const randomHint = hintTypes[Math.floor(Math.random() * hintTypes.length)];
+    return { 
+      hint: randomHint,
+      elements: [element1.id, element2.id]
+    };
+  }
+  
+  return { hint: "Keep experimenting with different combinations!" };
+};
+
+export const viewElementDetails = (
+  gameProgress: GameProgress,
+  elementId: string | null
 ): GameProgress => {
-  if (!gameProgress || !gameProgress.gameState || !gameProgress.achievementState) {
-    console.error('Invalid gameProgress in removeElementFromCombination');
-    return gameProgress || initializeGame();
+  if (!gameProgress) {
+    return initializeGame();
   }
   
-  const { gameState, achievementState } = gameProgress;
-  const [element1, element2] = gameState.combiningElements;
-  
-  // If element is in first slot, remove it
-  if (element1 === elementId) {
-    return {
-      gameState: {
-        ...gameState,
-        combiningElements: [null, element2]
-      },
-      achievementState
-    };
-  }
-  
-  // If element is in second slot, remove it
-  if (element2 === elementId) {
-    return {
-      gameState: {
-        ...gameState,
-        combiningElements: [element1, null]
-      },
-      achievementState
-    };
-  }
-  
-  // Element not in combination
-  return gameProgress;
+  return {
+    ...gameProgress,
+    gameState: {
+      ...(gameProgress.gameState || defaultGameState),
+      viewedElementDetails: elementId
+    }
+  };
 };
 
 export const attemptCombination = (gameProgress: GameProgress): {
@@ -521,7 +588,6 @@ export const attemptCombination = (gameProgress: GameProgress): {
   return { newGameProgress, success: false };
 };
 
-// Get possible combinations player can make with current discovered elements
 export const getPossibleCombinations = (gameState: GameState): Combination[] => {
   if (!gameState || !gameState.elements) {
     return [];
@@ -552,153 +618,6 @@ export const getPossibleCombinations = (gameState: GameState): Combination[] => 
   return possibleCombinations;
 };
 
-// Improved hint system that provides more dynamic and context-aware hints
-export const getRandomHint = (gameState: GameState): { 
-  hint: string, 
-  elements?: [string, string] 
-} => {
-  if (!gameState || !gameState.elements) {
-    return { hint: "Try combining the basic elements to get started!" };
-  }
-  
-  const possibleCombinations = getPossibleCombinations(gameState);
-  
-  // If no possible combinations are found
-  if (!possibleCombinations || possibleCombinations.length === 0) {
-    const discoveredElements = getDiscoveredElements(gameState);
-    
-    // Check if the player has discovered almost everything
-    if (discoveredElements.length > gameState.elements.length * 0.8) {
-      return { hint: "You've discovered most elements! Keep combining to find the rare ones." };
-    }
-    
-    // If they're stuck at the beginning
-    if (discoveredElements.length <= 6) {
-      return { hint: "Try combining the basic elements (Air, Water, Fire, Earth) in different ways." };
-    }
-    
-    // General hint
-    return { hint: "Try combining elements you haven't paired yet." };
-  }
-  
-  // Get a random combination hint
-  const randomCombo = possibleCombinations[Math.floor(Math.random() * possibleCombinations.length)];
-  const element1 = gameState.elements.find(e => e.id === randomCombo.elements[0]);
-  const element2 = gameState.elements.find(e => e.id === randomCombo.elements[1]);
-  
-  if (element1 && element2) {
-    // Different hint types for variety
-    const hintTypes = [
-      `Try combining ${element1.name} with ${element2.name}.`,
-      `What happens when ${element1.name} meets ${element2.name}?`,
-      `Have you tried mixing ${element1.name} and ${element2.name} yet?`,
-      `A magical reaction might occur between ${element1.name} and ${element2.name}.`,
-      `${element1.name} and ${element2.name} might create something interesting!`
-    ];
-    
-    const randomHint = hintTypes[Math.floor(Math.random() * hintTypes.length)];
-    return { 
-      hint: randomHint,
-      elements: [element1.id, element2.id]
-    };
-  }
-  
-  return { hint: "Keep experimenting with different combinations!" };
-};
-
-// Set the element being viewed in the details panel
-export const viewElementDetails = (
-  gameProgress: GameProgress,
-  elementId: string | null
-): GameProgress => {
-  if (!gameProgress) {
-    return initializeGame();
-  }
-  
-  return {
-    ...gameProgress,
-    gameState: {
-      ...(gameProgress.gameState || defaultGameState),
-      viewedElementDetails: elementId
-    }
-  };
-};
-
-// Get elements grouped by category
-export const getElementsByCategory = (gameState: GameState): Record<string, Element[]> => {
-  if (!gameState || !gameState.elements) {
-    return {};
-  }
-  
-  const discovered = getDiscoveredElements(gameState);
-  
-  return discovered.reduce((acc, element) => {
-    const category = element.category;
-    if (!acc[category]) {
-      acc[category] = [];
-    }
-    acc[category].push(element);
-    return acc;
-  }, {} as Record<string, Element[]>);
-};
-
-// Get stats about the game progress
-export const getGameStats = (gameState: GameState): {
-  totalElements: number;
-  discoveredElements: number;
-  percentComplete: number;
-  basicElements: number;
-  compoundElements: number;
-  advancedElements: number;
-  rareElements: number;
-  scientificElements: number;
-} => {
-  // Add null check to prevent accessing properties of undefined
-  if (!gameState || !gameState.elements) {
-    console.error('GameState or gameState.elements is undefined in getGameStats');
-    return {
-      totalElements: 0,
-      discoveredElements: 0,
-      percentComplete: 0,
-      basicElements: 0,
-      compoundElements: 0,
-      advancedElements: 0,
-      rareElements: 0,
-      scientificElements: 0
-    };
-  }
-  
-  const discovered = getDiscoveredElements(gameState);
-  
-  // Add null check for discovered
-  if (!discovered) {
-    return {
-      totalElements: gameState.elements.length,
-      discoveredElements: 0,
-      percentComplete: 0,
-      basicElements: 0,
-      compoundElements: 0,
-      advancedElements: 0,
-      rareElements: 0,
-      scientificElements: 0
-    };
-  }
-  
-  const total = gameState.elements.length;
-  
-  return {
-    totalElements: total,
-    discoveredElements: discovered.length,
-    percentComplete: Math.round((discovered.length / total) * 100),
-    basicElements: discovered.filter(e => e.category === 'basic').length,
-    compoundElements: discovered.filter(e => e.category === 'compound').length,
-    advancedElements: discovered.filter(e => e.category === 'advanced').length,
-    rareElements: discovered.filter(e => e.category === 'rare').length,
-    scientificElements: discovered.filter(e => e.category === 'scientific').length
-  };
-};
-
-// Enhanced AI assistant to provide more contextual and helpful suggestions
 export const getAIAssistantMessage = (gameState: GameState): string => {
   if (!gameState || !gameState.elements) {
     return "Welcome to Element Alchemy! Try combining the basic elements to start your journey.";
