@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Element from './Element';
@@ -27,10 +28,10 @@ const ElementGrid: React.FC<ElementGridProps> = ({
   combineZoneRef,
   onElementDetails,
   onElementFavorite,
-  favorites,
-  combinationCounts,
-  elementPowers,
-  comboMultiplier
+  favorites = [], // Provide default empty array to prevent undefined errors
+  combinationCounts = {}, // Provide default empty object to prevent undefined errors
+  elementPowers = {}, // Provide default empty object to prevent undefined errors
+  comboMultiplier = 1 // Provide default value to prevent undefined errors
 }) => {
   const [filter, setFilter] = useState<'all' | 'basic' | 'compound' | 'advanced' | 'rare' | 'scientific'>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -42,8 +43,12 @@ const ElementGrid: React.FC<ElementGridProps> = ({
   
   const categories = ['all', ...new Set(elements.map(e => e.category))];
 
+  // Ensure favorites exists before using includes
+  const safeIsFavorite = (id: string) => Array.isArray(favorites) && favorites.includes(id);
+
   const filteredElements = elements.filter(element => {
-    if (showFavoritesOnly) return favorites.includes(element.id);
+    // Use the safe function for checking favorites
+    if (showFavoritesOnly) return safeIsFavorite(element.id);
     if (activeCategory === 'all') return true;
     return element.category === activeCategory;
   });
@@ -54,7 +59,7 @@ const ElementGrid: React.FC<ElementGridProps> = ({
     } else if (sort === 'newest') {
       return -1;
     } else if (sort === 'power') {
-      return (elementPowers[b.id] || 0) - (elementPowers[a.id] || 0);
+      return ((elementPowers && elementPowers[b.id]) || 0) - ((elementPowers && elementPowers[a.id]) || 0);
     }
     if (a.category !== b.category) {
       const categoryOrder = { basic: 1, compound: 2, advanced: 3, rare: 4, scientific: 5 };
@@ -316,10 +321,10 @@ const ElementGrid: React.FC<ElementGridProps> = ({
                   onDragEnd={() => handleDragEnd(element.id)}
                   combineZoneRef={combineZoneRef}
                   glow={animateNewElement === element.id}
-                  onFavorite={() => onElementFavorite?.(element.id)}
-                  isFavorite={favorites.includes(element.id)}
-                  usageCount={combinationCounts[element.id]}
-                  powerLevel={elementPowers[element.id] || 0}
+                  onFavorite={onElementFavorite ? () => onElementFavorite(element.id) : undefined}
+                  isFavorite={safeIsFavorite(element.id)}
+                  usageCount={combinationCounts ? combinationCounts[element.id] : undefined}
+                  powerLevel={elementPowers ? elementPowers[element.id] || 0 : 0}
                 />
                 
                 {onElementDetails && (

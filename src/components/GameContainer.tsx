@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ElementGrid from './ElementGrid';
@@ -21,7 +20,8 @@ import {
   viewElementDetails,
   getGameStats,
   getRandomHint,
-  getAIAssistantMessage
+  getAIAssistantMessage,
+  toggleFavorite
 } from '@/utils/gameLogic';
 import { toast } from '@/hooks/use-toast';
 import { 
@@ -45,7 +45,6 @@ import {
 } from "@/components/ui/tooltip";
 import { Progress } from '@/components/ui/progress';
 
-// Create a default empty state to use when needed
 const defaultGameState: GameState = {
   elements: [],
   discoveries: [],
@@ -54,7 +53,14 @@ const defaultGameState: GameState = {
   score: 0,
   successfulCombosInARow: 0,
   lastCombinationSuccess: null,
-  viewedElementDetails: null
+  viewedElementDetails: null,
+  combinationCounts: {},
+  favorites: [],
+  currentComboChain: 0,
+  maxComboChain: 0,
+  elementPowers: {},
+  comboMultiplier: 1,
+  totalPowerGained: 0
 };
 
 const GameContainer: React.FC = () => {
@@ -72,15 +78,12 @@ const GameContainer: React.FC = () => {
   
   const combineZoneRef = useRef<HTMLDivElement>(null);
   
-  // Initialize game on first render
   useEffect(() => {
     const initialGameProgress = initializeGame();
     setGameProgress(initialGameProgress);
     
-    // Set initial AI assistant message
     setAiAssistantMessage(getAIAssistantMessage(initialGameProgress.gameState));
 
-    // Show tutorial for new players
     const hasSeenTutorial = localStorage.getItem('elementAlchemyTutorialSeen');
     if (!hasSeenTutorial) {
       setShowTutorial(true);
@@ -88,10 +91,8 @@ const GameContainer: React.FC = () => {
     }
   }, []);
   
-  // Add safeguards for undefined gameState or achievementState
   const { gameState = defaultGameState, achievementState = { achievements: [], lastUnlocked: null } } = gameProgress || {};
   
-  // Use safe versions of functions that handle potential undefined values
   const safeGetDiscoveredElements = () => {
     if (!gameState || !gameState.elements) return [];
     return getDiscoveredElements(gameState);
@@ -114,7 +115,6 @@ const GameContainer: React.FC = () => {
   const discoveredElements = safeGetDiscoveredElements();
   const stats = safeGetGameStats();
   
-  // Calculate element usage in combinations
   useEffect(() => {
     if (!gameState || !gameState.discoveries) {
       setElementCounts({});
@@ -131,13 +131,10 @@ const GameContainer: React.FC = () => {
   }, [gameState?.discoveries]);
   
   useEffect(() => {
-    // Save game state when it changes
     if (gameProgress) {
       saveGame(gameProgress);
       
-      // Update AI assistant message when game state changes
       setAiThinking(true);
-      // Simulate AI "thinking" with a slight delay
       setTimeout(() => {
         setAiAssistantMessage(getAIAssistantMessage(gameProgress.gameState));
         setAiThinking(false);
@@ -145,14 +142,12 @@ const GameContainer: React.FC = () => {
     }
   }, [gameProgress]);
 
-  // Show tutorial on first load
   useEffect(() => {
     const hasSeenTutorial = localStorage.getItem('elementAlchemyTutorialSeen');
     if (!hasSeenTutorial && !hasShownIntro) {
       setShowTutorial(true);
       setHasShownIntro(true);
       
-      // Mark as seen after a delay
       setTimeout(() => {
         localStorage.setItem('elementAlchemyTutorialSeen', 'true');
       }, 2000);
@@ -194,11 +189,9 @@ const GameContainer: React.FC = () => {
       description: "Your progress has been reset.",
     });
     
-    // Update AI message for new game
     setAiAssistantMessage(getAIAssistantMessage(freshGame.gameState));
   };
 
-  // Improved hint system with visual cues
   const checkForHints = () => {
     if (!gameState) return;
     
@@ -211,9 +204,7 @@ const GameContainer: React.FC = () => {
         variant: "default"
       });
       
-      // If we have specific elements to highlight, we could add visual cues
       if (hintResult.elements) {
-        // Make the AI suggest these elements
         setAiAssistantMessage(`AI Suggestion: ${hintResult.hint}`);
       }
     }
@@ -227,17 +218,14 @@ const GameContainer: React.FC = () => {
     setGameProgress(prevState => prevState ? viewElementDetails(prevState, null) : prevState);
   };
 
-  // Get the currently viewed element
   const viewedElement = gameState?.viewedElementDetails 
     ? getElementByID(gameState, gameState.viewedElementDetails) 
     : null;
     
-  // Find the discovery for the viewed element
   const viewedElementDiscovery = viewedElement && gameState?.discoveries 
     ? gameState.discoveries.find(d => d.result === viewedElement.id) 
     : null;
 
-  // If gameProgress is null, show improved loading state
   if (!gameProgress) {
     return (
       <div className="container mx-auto px-4 py-8 flex justify-center items-center h-screen">
@@ -395,7 +383,6 @@ const GameContainer: React.FC = () => {
           </div>
         </div>
         
-        {/* AI Assistant message with thinking animation */}
         <motion.div
           className="mb-4 bg-primary/10 rounded-lg p-3 text-sm"
           initial={{ opacity: 0 }}
@@ -447,7 +434,6 @@ const GameContainer: React.FC = () => {
         </motion.div>
       </div>
       
-      {/* Mobile Tab Navigation - improved styling */}
       <div className="flex lg:hidden mb-4 border-b bg-white/5 backdrop-blur-sm rounded-t-lg overflow-hidden">
         <button
           className={`flex-1 py-3 px-4 text-center transition-colors ${activeTab === 'elements' ? 'border-b-2 border-primary font-medium bg-primary/10' : 'text-muted-foreground'}`}
@@ -490,6 +476,11 @@ const GameContainer: React.FC = () => {
               selectedElements={gameState.combiningElements as string[]}
               combineZoneRef={combineZoneRef}
               onElementDetails={handleViewElementDetails}
+              onElementFavorite={(id) => setGameProgress(prevState => prevState ? toggleFavorite(prevState, id) : prevState)}
+              favorites={gameState.favorites || []}
+              combinationCounts={gameState.combinationCounts || {}}
+              elementPowers={gameState.elementPowers || {}}
+              comboMultiplier={gameState.comboMultiplier || 1}
             />
           </div>
         </motion.div>
@@ -556,7 +547,6 @@ const GameContainer: React.FC = () => {
         </motion.div>
       </div>
       
-      {/* Improved tutorial overlay */}
       <AnimatePresence>
         {showTutorial && (
           <motion.div 
@@ -595,7 +585,6 @@ const GameContainer: React.FC = () => {
         )}
       </AnimatePresence>
       
-      {/* Achievements panel */}
       <AnimatePresence>
         {showAchievements && (
           <AchievementsPanel 
@@ -605,7 +594,6 @@ const GameContainer: React.FC = () => {
         )}
       </AnimatePresence>
       
-      {/* Element details panel */}
       <AnimatePresence>
         {viewedElement && (
           <ElementDetails 
@@ -617,7 +605,6 @@ const GameContainer: React.FC = () => {
         )}
       </AnimatePresence>
       
-      {/* Improved stats modal */}
       <AnimatePresence>
         {showStats && (
           <motion.div 

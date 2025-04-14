@@ -263,8 +263,12 @@ export const combineElements = (
     lastCombinationSuccess: true,
     viewedElementDetails: gameState.viewedElementDetails,
     combinationCounts,
+    favorites: gameState.favorites || [],
     currentComboChain,
-    maxComboChain
+    maxComboChain,
+    elementPowers: gameState.elementPowers || {},
+    comboMultiplier: gameState.comboMultiplier || 1,
+    totalPowerGained: gameState.totalPowerGained || 0
   };
   
   if (true) {
@@ -737,4 +741,3 @@ export const toggleFavorite = (gameProgress: GameProgress, elementId: string): G
     }
   };
 };
-
