@@ -2,6 +2,8 @@ import { Element, Combination, initialElements, getAllCombinations } from './ele
 import { Achievement, initializeAchievements, processAchievements, AchievementState } from './achievementSystem';
 import { toast } from '@/hooks/use-toast';
 
+// Game logic functions for element alchemy game
+
 export interface GameState {
   elements: Element[];
   discoveries: Discovery[];
