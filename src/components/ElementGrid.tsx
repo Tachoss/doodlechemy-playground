@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Element from './Element';
 import { Element as ElementType } from '@/utils/elementData';
@@ -20,7 +20,7 @@ interface ElementGridProps {
   comboMultiplier: number;
 }
 
-const ElementGrid: React.FC<ElementGridProps> = ({
+const ElementGrid: React.FC<ElementGridProps> = memo(({
   elements,
   onElementClick,
   selectedElements,
@@ -47,7 +47,18 @@ const ElementGrid: React.FC<ElementGridProps> = ({
   const safeIsFavorite = (id: string) => Array.isArray(favorites) && favorites.includes(id);
 
   const filteredElements = elements.filter(element => {
+    // Apply search filter first
+    const matchesSearch = !searchTerm || 
+      element.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      element.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      element.category.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    if (!matchesSearch) return false;
+    
+    // Apply favorites filter
     if (showFavoritesOnly) return safeIsFavorite(element.id);
+    
+    // Apply category filter
     if (activeCategory === 'all') return true;
     return element.category === activeCategory;
   });
@@ -79,15 +90,22 @@ const ElementGrid: React.FC<ElementGridProps> = ({
   };
 
   useEffect(() => {
-    const newElementId = elements.find(e => !selectedElements.includes(e.id) && e.discovered)?.id;
-    if (newElementId) {
-      setAnimateNewElement(newElementId);
-      const timer = setTimeout(() => {
-        setAnimateNewElement(null);
-      }, 3000);
-      return () => clearTimeout(timer);
+    // Simplified animation trigger to avoid performance issues
+    const hasNewDiscoveries = elements.some(e => e.discovered && !selectedElements.includes(e.id));
+    if (hasNewDiscoveries && !animateNewElement) {
+      const latestElement = elements
+        .filter(e => e.discovered)
+        .sort((a, b) => a.name.localeCompare(b.name))[0];
+      
+      if (latestElement) {
+        setAnimateNewElement(latestElement.id);
+        const timer = setTimeout(() => {
+          setAnimateNewElement(null);
+        }, 2000);
+        return () => clearTimeout(timer);
+      }
     }
-  }, [elements, selectedElements]);
+  }, [elements.length, selectedElements, animateNewElement]);
 
   return (
     <div className={className}>
@@ -372,6 +390,8 @@ const ElementGrid: React.FC<ElementGridProps> = ({
       )}
     </div>
   );
-};
+});
+
+ElementGrid.displayName = 'ElementGrid';
 
 export default ElementGrid;

@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { motion, useMotionValue, useTransform, AnimatePresence } from 'framer-motion';
+import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Element as ElementType } from '@/utils/elementData';
@@ -20,7 +20,7 @@ interface ElementProps {
   powerLevel?: number;
 }
 
-const Element: React.FC<ElementProps> = ({
+const Element: React.FC<ElementProps> = memo(({
   element,
   onClick,
   onFavorite,
@@ -37,54 +37,25 @@ const Element: React.FC<ElementProps> = ({
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [showLabel, setShowLabel] = useState(true);
-  const [hasBeenDragged, setHasBeenDragged] = useState(false);
   const elementRef = useRef<HTMLDivElement>(null);
   
-  // Reset drag state when component remounts
-  useEffect(() => {
-    setHasBeenDragged(false);
-  }, [element.id]);
-  
-  const sizeClasses = {
-    sm: 'w-12 h-12 text-lg',
-    md: 'w-16 h-16 text-xl',
-    lg: 'w-20 h-20 text-2xl',
-  };
-
-  const variants = {
-    idle: { scale: 1 },
-    hover: { scale: 1.05, boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' },
-    selected: { 
-      scale: 1.1, 
-      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', 
-      borderWidth: '2px',
-      borderColor: 'rgba(255, 255, 255, 0.5)'
-    },
-    drag: { 
-      scale: 1.15, 
-      boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', 
-      zIndex: 50
-    }
-  };
-
-  const handleDragStart = () => {
+  // Optimize handlers with useCallback
+  const handleDragStart = useCallback(() => {
     setIsDragging(true);
     setShowLabel(false);
-    setHasBeenDragged(true);
     
-    // Create a custom cursor effect
     if (elementRef.current) {
       document.body.style.cursor = 'grabbing';
     }
-  };
+  }, []);
 
-  const handleDragEnd = (info: any) => {
+  const handleDragEnd = useCallback((info: any) => {
     setIsDragging(false);
     setShowLabel(true);
     document.body.style.cursor = 'default';
     
     // Check if element was dropped in the combination area
-    if (combineZoneRef && combineZoneRef.current && info && info.point) {
+    if (combineZoneRef?.current && info?.point) {
       const combineRect = combineZoneRef.current.getBoundingClientRect();
       const { clientX, clientY } = info.point;
       
@@ -97,15 +68,48 @@ const Element: React.FC<ElementProps> = ({
         if (onDragEnd) {
           onDragEnd(info);
         } else {
-          onClick();
+          onClick?.();
         }
+        return;
       }
-    } else if (onDragEnd) {
-      onDragEnd(info);
-    } else if (hasBeenDragged) {
-      // Fallback to onClick if dragging fails but only if it has been dragged
-      // This prevents accidental clicks when the user is just clicking on an element
-      onClick();
+    }
+    
+    onDragEnd?.(info);
+  }, [combineZoneRef, onDragEnd, onClick]);
+
+  const handleClick = useCallback(() => {
+    if (!isDraggable && !isDragging) {
+      onClick?.();
+    }
+  }, [isDraggable, isDragging, onClick]);
+
+  const handleFavoriteClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onFavorite?.();
+  }, [onFavorite]);
+  
+  const sizeClasses = {
+    sm: 'w-12 h-12 text-lg',
+    md: 'w-16 h-16 text-xl',
+    lg: 'w-20 h-20 text-2xl',
+  };
+
+  // Optimized animation variants
+  const variants = {
+    idle: { scale: 1, transition: { duration: 0.2 } },
+    hover: { scale: 1.05, boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', transition: { duration: 0.2 } },
+    selected: { 
+      scale: 1.1, 
+      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', 
+      borderWidth: '2px',
+      borderColor: 'rgba(255, 255, 255, 0.5)',
+      transition: { duration: 0.2 }
+    },
+    drag: { 
+      scale: 1.15, 
+      boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', 
+      zIndex: 50,
+      transition: { duration: 0.1 }
     }
   };
 
@@ -151,13 +155,14 @@ const Element: React.FC<ElementProps> = ({
         animate={isDragging ? "drag" : isSelected ? 'selected' : 'idle'}
         whileHover={!isDragging ? "hover" : undefined}
         whileTap={{ scale: 0.95 }}
-        onClick={!isDraggable && !isDragging ? onClick : undefined}
+        onClick={handleClick}
         drag={isDraggable}
         dragConstraints={isDraggable ? { left: 0, right: 0, top: 0, bottom: 0 } : false}
         dragElastic={0.1}
         dragTransition={{ bounceStiffness: 600, bounceDamping: 20 }}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
+        layoutId={`element-${element.id}`}
       >
         <span className="text-2xl pointer-events-none select-none">{element.symbol}</span>
         
@@ -187,10 +192,7 @@ const Element: React.FC<ElementProps> = ({
 
         {isFavorite && (
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onFavorite?.();
-            }}
+            onClick={handleFavoriteClick}
             className="absolute -top-1 -right-1 w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center"
           >
             <Star size={12} className="text-white" fill="white" />
@@ -239,6 +241,8 @@ const Element: React.FC<ElementProps> = ({
       </AnimatePresence>
     </div>
   );
-};
+});
+
+Element.displayName = 'Element';
 
 export default Element;

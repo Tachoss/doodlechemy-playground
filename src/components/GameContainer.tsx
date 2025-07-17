@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GameStats } from './GameStats';
 import ElementGrid from './ElementGrid';
@@ -75,81 +75,124 @@ const GameContainer = () => {
     }
   }, [gameProgress.achievementState.lastUnlocked, gameProgress.achievementState.achievements]);
 
-  const handleDrop = (elementId: string) => {
-    setGameProgress(addElementToCombination(gameProgress, elementId));
-  };
-
-  const handleRemoveElement = (elementId: string) => {
-    setGameProgress(removeElementFromCombination(gameProgress, elementId));
-  };
-
-  const handleCombine = () => {
-    const { newGameProgress, success, newElement } = attemptCombination(gameProgress);
-    setGameProgress(newGameProgress);
-
-    if (success && newElement) {
-      if (!newGameProgress.gameState.elements.find(e => e.id === newElement.id)?.discovered) {
-        setNewlyDiscoveredElement(newElement);
-      }
+  const handleDrop = useCallback((elementId: string) => {
+    try {
+      setGameProgress(prev => addElementToCombination(prev, elementId));
+    } catch (error) {
+      console.error('Error adding element to combination:', error);
     }
-  };
+  }, []);
 
-  const handleViewDetails = (elementId: string | null) => {
-    setGameProgress(viewElementDetails(gameProgress, elementId));
-  };
+  const handleRemoveElement = useCallback((elementId: string) => {
+    try {
+      setGameProgress(prev => removeElementFromCombination(prev, elementId));
+    } catch (error) {
+      console.error('Error removing element from combination:', error);
+    }
+  }, []);
 
-  const handleToggleFavorite = (elementId: string) => {
-    setGameProgress(toggleFavorite(gameProgress, elementId));
-  };
+  const handleCombine = useCallback(() => {
+    try {
+      const { newGameProgress, success, newElement } = attemptCombination(gameProgress);
+      setGameProgress(newGameProgress);
 
-  const handleActivatePowerUp = (powerUpId: string) => {
-    const { newGameState, newPowerUpState } = activatePowerUp(
-      gameState, 
-      powerUpId, 
-      powerUpsState
-    );
-    
-    setGameProgress({
-      ...gameProgress,
-      gameState: newGameState
-    });
-    
-    setPowerUpsState(newPowerUpState);
-  };
+      if (success && newElement) {
+        if (!newGameProgress.gameState.elements.find(e => e.id === newElement.id)?.discovered) {
+          setNewlyDiscoveredElement(newElement);
+        }
+      }
+    } catch (error) {
+      console.error('Error combining elements:', error);
+    }
+  }, [gameProgress]);
 
-  const filteredElements = activeCategory 
-    ? discoveredElements.filter(element => element.category === activeCategory) 
-    : discoveredElements;
+  const handleViewDetails = useCallback((elementId: string | null) => {
+    try {
+      setGameProgress(prev => viewElementDetails(prev, elementId));
+    } catch (error) {
+      console.error('Error viewing element details:', error);
+    }
+  }, []);
 
-  const searchFilteredElements = filter 
-    ? filteredElements.filter(element => 
-        element.name.toLowerCase().includes(filter.toLowerCase()) || 
-        element.symbol.toLowerCase().includes(filter.toLowerCase())
-      ) 
-    : filteredElements;
+  const handleToggleFavorite = useCallback((elementId: string) => {
+    try {
+      setGameProgress(prev => toggleFavorite(prev, elementId));
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+    }
+  }, []);
 
-  const displayedElements = showFavoritesOnly 
-    ? searchFilteredElements.filter(element => gameState.favorites.includes(element.id)) 
-    : searchFilteredElements;
+  const handleActivatePowerUp = useCallback((powerUpId: string) => {
+    try {
+      const { newGameState, newPowerUpState } = activatePowerUp(
+        gameState, 
+        powerUpId, 
+        powerUpsState
+      );
+      
+      setGameProgress(prev => ({
+        ...prev,
+        gameState: newGameState
+      }));
+      
+      setPowerUpsState(newPowerUpState);
+    } catch (error) {
+      console.error('Error activating power-up:', error);
+    }
+  }, [gameState, powerUpsState]);
 
-  // Used for category counts in tabs
-  const categoryElementCounts = discoveredElements.reduce((acc, element) => {
-    acc[element.category] = (acc[element.category] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+  // Optimize element filtering with useMemo
+  const filteredElements = useMemo(() => {
+    if (!discoveredElements) return [];
+    return activeCategory 
+      ? discoveredElements.filter(element => element.category === activeCategory) 
+      : discoveredElements;
+  }, [discoveredElements, activeCategory]);
 
-  const stats = getGameStats(gameState);
+  const searchFilteredElements = useMemo(() => {
+    if (!filteredElements) return [];
+    return filter 
+      ? filteredElements.filter(element => 
+          element.name.toLowerCase().includes(filter.toLowerCase()) || 
+          element.symbol.toLowerCase().includes(filter.toLowerCase())
+        ) 
+      : filteredElements;
+  }, [filteredElements, filter]);
+
+  const displayedElements = useMemo(() => {
+    if (!searchFilteredElements) return [];
+    return showFavoritesOnly 
+      ? searchFilteredElements.filter(element => gameState.favorites?.includes(element.id)) 
+      : searchFilteredElements;
+  }, [searchFilteredElements, showFavoritesOnly, gameState.favorites]);
+
+  // Optimize heavy calculations with useMemo
+  const categoryElementCounts = useMemo(() => {
+    if (!discoveredElements) return {};
+    return discoveredElements.reduce((acc, element) => {
+      acc[element.category] = (acc[element.category] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+  }, [discoveredElements]);
+
+  const stats = useMemo(() => getGameStats(gameState), [gameState]);
   
-  // Create the combinationCounts for ElementGrid
-  const combinationCounts: Record<string, number> = {};
-  gameState.discoveries.forEach(discovery => {
-    discovery.elements.forEach(element => {
-      combinationCounts[element] = (combinationCounts[element] || 0) + 1;
-    });
-  });
+  const combinationCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    if (gameState.discoveries) {
+      gameState.discoveries.forEach(discovery => {
+        discovery.elements.forEach(element => {
+          counts[element] = (counts[element] || 0) + 1;
+        });
+      });
+    }
+    return counts;
+  }, [gameState.discoveries]);
 
-  // Calculate a dummy selectedElements array to match ElementGrid props
-  const selectedElements = gameState.combiningElements.filter(el => el !== null) as string[];
+  const selectedElements = useMemo(() => 
+    gameState.combiningElements?.filter(el => el !== null) as string[] || [], 
+    [gameState.combiningElements]
+  );
 
   return (
     <div className="container mx-auto px-4 md:px-6 pb-8 relative">

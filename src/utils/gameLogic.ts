@@ -493,13 +493,13 @@ export const removeElementFromCombination = (
   elementId: string
 ): GameProgress => {
   if (!gameProgress || !gameProgress.gameState) {
-    return gameProgress;
+    return gameProgress || initializeGame();
   }
 
   const { gameState } = gameProgress;
   const newCombiningElements: [string | null, string | null] = [...gameState.combiningElements];
-  
-  // Find which slot contains this element and remove it
+
+  // Find and remove the element from combination slots
   if (newCombiningElements[0] === elementId) {
     newCombiningElements[0] = null;
   } else if (newCombiningElements[1] === elementId) {
@@ -511,10 +511,15 @@ export const removeElementFromCombination = (
     combiningElements: newCombiningElements
   };
 
-  return {
+  const newGameProgress = {
     ...gameProgress,
     gameState: newGameState
   };
+
+  // Save the updated state
+  saveGame(newGameProgress);
+  
+  return newGameProgress;
 };
 
 export const getRandomHint = (gameState: GameState): { 

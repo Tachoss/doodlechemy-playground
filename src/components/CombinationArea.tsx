@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import Element from './Element';
@@ -34,7 +34,7 @@ const defaultGameState: GameState = {
   totalPowerGained: 0
 };
 
-const CombinationArea: React.FC<CombinationAreaProps> = ({
+const CombinationArea: React.FC<CombinationAreaProps> = memo(({
   gameState = defaultGameState,
   onRemoveElement,
   onCombine,
@@ -56,105 +56,79 @@ const CombinationArea: React.FC<CombinationAreaProps> = ({
   const [showInstructions, setShowInstructions] = useState(true);
   const [showPulse, setShowPulse] = useState(false);
 
-  // Show instructions initially but hide after a few seconds
+  // Optimize effects and reduce re-renders
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowInstructions(false);
-    }, 5000);
-    
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Add a pulsing effect when both elements are selected
-  useEffect(() => {
-    if (element1 && element2) {
-      setShowPulse(true);
-      const timer = setTimeout(() => {
-        setShowPulse(false);
-      }, 2000);
+    if (showInstructions) {
+      const timer = setTimeout(() => setShowInstructions(false), 3000);
       return () => clearTimeout(timer);
     }
+  }, [showInstructions]);
+
+  useEffect(() => {
+    const bothElementsSelected = Boolean(element1 && element2);
+    setShowPulse(bothElementsSelected);
   }, [element1, element2]);
 
-  const handleCombine = () => {
-    if (element1 && element2) {
-      setCombining(true);
-      setShowParticles(true);
-      setIsAnimating(true);
+  const handleCombine = useCallback(() => {
+    if (!element1 || !element2 || combining || isAnimating) return;
+    
+    setCombining(true);
+    setIsAnimating(true);
+    setShowParticles(true);
+    
+    // Optimized particle generation
+    if (containerRef.current && elementObj1 && elementObj2) {
+      const centerX = containerRef.current.offsetWidth / 2;
+      const centerY = containerRef.current.offsetHeight / 2;
       
-      // Create particles with improved visual effects
-      if (containerRef.current && elementObj1 && elementObj2) {
-        const centerX = containerRef.current.offsetWidth / 2;
-        const centerY = containerRef.current.offsetHeight / 2;
-        
-        // Create a variety of particles with different sizes
-        const newParticles = [
-          // Small particles (more numerous)
-          ...Array.from({ length: 30 }, (_, i) => ({
-            id: i,
-            x: centerX,
-            y: centerY,
-            color: i % 2 === 0 ? elementObj1.color : elementObj2.color,
-            success: true,
-            size: 'small' as const
-          })),
-          // Medium particles
-          ...Array.from({ length: 20 }, (_, i) => ({
-            id: i + 30,
-            x: centerX,
-            y: centerY,
-            color: i % 2 === 0 ? elementObj1.color : elementObj2.color,
-            success: true,
-            size: 'medium' as const
-          })),
-          // Large particles (fewer)
-          ...Array.from({ length: 10 }, (_, i) => ({
-            id: i + 50,
-            x: centerX,
-            y: centerY,
-            color: i % 2 === 0 ? elementObj1.color : elementObj2.color,
-            success: true,
-            size: 'large' as const
-          }))
-        ];
-        
-        setParticles(newParticles);
-      }
+      // Reduce particle count for better performance
+      const newParticles = Array.from({ length: 16 }, (_, i) => ({
+        id: i,
+        x: centerX,
+        y: centerY,
+        color: i % 2 === 0 ? elementObj1.color : elementObj2.color,
+        success: true,
+        size: i < 8 ? 'small' as const : i < 12 ? 'medium' as const : 'large' as const
+      }));
       
-      // Hide particles after animation and call the combine callback
-      setTimeout(() => {
-        setShowParticles(false);
-        setCombining(false);
-        setIsAnimating(false);
-        onCombine();
-      }, 1200);
+      setParticles(newParticles);
     }
-  };
+    
+    // Process combination after optimized animation
+    setTimeout(() => {
+      onCombine();
+      setCombining(false);
+      setShowParticles(false);
+      setIsAnimating(false);
+      setParticles([]);
+    }, 800);
+  }, [element1, element2, combining, isAnimating, elementObj1, elementObj2, onCombine]);
 
   const bothElementsSelected = element1 !== null && element2 !== null;
 
-  // Reset hint timeout when elements change
+  // Optimized hint logic
   useEffect(() => {
     const timer = setTimeout(() => {
-      if ((element1 && !element2) || (!element1 && element2)) {
-        setShowHint(true);
-      } else {
-        setShowHint(false);
-      }
-    }, 2000);
+      const oneElementSelected = Boolean((element1 && !element2) || (!element1 && element2));
+      setShowHint(oneElementSelected);
+    }, 1500);
     
     return () => clearTimeout(timer);
   }, [element1, element2]);
 
-  // Handle drag over effects
-  const handleDragOver = (e: React.DragEvent) => {
+  // Optimized drag handlers
+  const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setDropZoneActive(true);
-  };
+  }, []);
 
-  const handleDragLeave = () => {
+  const handleDragLeave = useCallback(() => {
     setDropZoneActive(false);
-  };
+  }, []);
+
+  const handleRemoveElement = useCallback((elementId: string) => {
+    onRemoveElement(elementId);
+  }, [onRemoveElement]);
 
   return (
     <div 
@@ -225,7 +199,7 @@ const CombinationArea: React.FC<CombinationAreaProps> = ({
                           hover:bg-red-600 transition-colors shadow-md"
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
-                onClick={() => onRemoveElement(element1)}
+                onClick={() => handleRemoveElement(element1)}
               >
                 <XCircle size={14} />
               </motion.div>
@@ -311,7 +285,7 @@ const CombinationArea: React.FC<CombinationAreaProps> = ({
                           hover:bg-red-600 transition-colors shadow-md"
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
-                onClick={() => onRemoveElement(element2)}
+                onClick={() => handleRemoveElement(element2)}
               >
                 <XCircle size={14} />
               </motion.div>
@@ -425,6 +399,8 @@ const CombinationArea: React.FC<CombinationAreaProps> = ({
       </div>
     </div>
   );
-};
+});
+
+CombinationArea.displayName = 'CombinationArea';
 
 export default CombinationArea;
