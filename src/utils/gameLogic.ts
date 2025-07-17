@@ -453,6 +453,68 @@ export const getGameStats = (gameState: GameState): {
   };
 };
 
+export const addElementToCombination = (
+  gameProgress: GameProgress,
+  elementId: string
+): GameProgress => {
+  if (!gameProgress || !gameProgress.gameState) {
+    return gameProgress;
+  }
+
+  const { gameState } = gameProgress;
+  const [first, second] = gameState.combiningElements;
+
+  let newCombiningElements: [string | null, string | null];
+  
+  if (first === null) {
+    newCombiningElements = [elementId, second];
+  } else if (second === null) {
+    newCombiningElements = [first, elementId];
+  } else {
+    // Both slots filled, replace first one
+    newCombiningElements = [elementId, second];
+  }
+
+  const newGameState = {
+    ...gameState,
+    combiningElements: newCombiningElements
+  };
+
+  return {
+    ...gameProgress,
+    gameState: newGameState
+  };
+};
+
+export const removeElementFromCombination = (
+  gameProgress: GameProgress,
+  elementId: string
+): GameProgress => {
+  if (!gameProgress || !gameProgress.gameState) {
+    return gameProgress;
+  }
+
+  const { gameState } = gameProgress;
+  const newCombiningElements: [string | null, string | null] = [...gameState.combiningElements];
+  
+  // Find which slot contains this element and remove it
+  if (newCombiningElements[0] === elementId) {
+    newCombiningElements[0] = null;
+  } else if (newCombiningElements[1] === elementId) {
+    newCombiningElements[1] = null;
+  }
+
+  const newGameState = {
+    ...gameState,
+    combiningElements: newCombiningElements
+  };
+
+  return {
+    ...gameProgress,
+    gameState: newGameState
+  };
+};
+
 export const getRandomHint = (gameState: GameState): { 
   hint: string, 
   elements?: [string, string] 
